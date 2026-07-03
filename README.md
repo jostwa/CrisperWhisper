@@ -1,325 +1,421 @@
-# CrisperWhisper
-
-**CrisperWhisper** is an advanced variant of OpenAI's Whisper, designed for fast, precise, and verbatim speech recognition with accurate (**crisp**) word-level timestamps. Unlike the original Whisper, which tends to omit disfluencies and follows more of a intended transcription style, CrisperWhisper aims to transcribe every spoken word exactly as it is, including fillers, pauses, stutters and false starts.
-
-## Key Features
-
-- 🎯 **Accurate Word-Level Timestamps**: Provides precise timestamps, even around disfluencies and pauses, by utilizing an adjusted tokenizer and a custom attention loss during training.
-- 📝 **Verbatim Transcription**: Transcribes every spoken word exactly as it is, including and differentiating fillers like "um" and "uh".
-- 🔍 **Filler Detection**: Detects and accurately transcribes fillers.
-- 🛡️ **Hallucination Mitigation**: Minimizes transcription hallucinations to enhance accuracy.
-
-## Table of Contents
-
-- [Key Features](#key-features)
-- [Highlights](#highlights)
-- [Performance Overview](#1-performance-overview)
-  - [Qualitative Performance Overview](#11-qualitative-performance-overview)
-  - [Quantitative Performance Overview](#12-quantitative-performance-overview)
-    - [Transcription Performance](#transcription-performance)
-    - [Segmentation Performance](#segmentation-performance)
-- [Setup](#2-setup-⚙️)
-  - [Prerequisites](#21-prerequisites)
-  - [Environment Setup](#22-environment-setup)
-- [Usage](#3-usage)
-  - [with transformers](#31-usage-with-🤗-transformers)
-  - [with faster whisper](#32-usage-with-faster-whisper)
-- [Running the Streamlit App](#4-running-the-streamlit-app)
-    - [Prerequisites](#41-prerequisites)
-    - [Steps to Run the Streamlit App](#42-steps-to-run-the-streamlit-app)
-    - [Features of the App](#43-features-of-the-app)
-- [How](#5-how)
-- [License](#license)
-
-
-## Highlights
-
-- 🏆 **1st place** on the [OpenASR Leaderboard](https://huggingface.co/spaces/hf-audio/open_asr_leaderboard) in verbatim datasets (TED, AMI) and overall.
-- 🎓 **Accepted at INTERSPEECH 2024**.
-- 📄 **Paper Drop**: Check out our [paper](https://arxiv.org/abs/2408.16589) for details and reasoning behind our tokenizer adjustment.
-- ✨ **New Feature**: Not mentioned in the paper is a added AttentionLoss to further improve timestamp accuracy. By specifically adding a loss to train the attention scores used for the DTW alignment using timestamped data we significantly boosted the alignment performance.
-
-
-
-## 1. Performance Overview
-
-### 1.1 Qualitative Performance Overview
-
-
-| Audio | Whisper Large V3 | Crisper Whisper |
-|-------|------------------------|------------------------|
-| [Demo de 1](https://github.com/user-attachments/assets/c8608ca8-5e02-4c4a-afd3-8f7c5bff75d5) | Er war kein Genie, aber doch ein fähiger Ingenieur. | Es ist zwar kein. Er ist zwar kein Genie, aber doch ein fähiger Ingenieur.|
-| [Demo de 2](https://github.com/user-attachments/assets/c68414b1-0f84-441c-b39b-29069487edb6) | Leider müssen wir in diesen schweren Zeiten auch unserem Tagesgeschäft nachgehen. Der hier vorgelegte Kulturhaushalt der Ampelregierung strebt an, den Erfolgskurs der Union zumindest fiskalisch fortzuführen. | Leider [UH] müssen wir in diesen [UH] schweren Zeiten auch [UH] unserem [UH] Tagesgeschäft nachgehen. Der hier [UH] vorgelegte [UH] Kulturhaushalt der [UH] Ampelregierung strebt an, den [UH] Erfolgskurs der Union [UH] zumindest [UH] fiskalisch fortzuführen. Es. |
-| [Demo de 3](https://github.com/user-attachments/assets/0c1ed60c-2829-47e4-b7ba-eb584b0a5e9a) | die über alle FRA-Fraktionen hinweg gut im Blick behalten sollten, auch weil sie teilweise sehr teeteuer sind. Aber nicht nur, weil sie teeteuer sind. Wir steigen mit diesem Endentwurf ein in die sogenannten Pandemie-Bereitschaftsverträge.| Die über alle Fr Fraktionen hinweg gut im [UH] Blick behalten sollten, auch weil sie teil teilweise sehr te teuer sind. Aber nicht nur, weil sie te teuer sind. Wir [UH] steigen mit diesem Ent Entwurf ein in die sogenannten Pand Pandemiebereitschaftsverträge. |
-| [Demo en 1](https://github.com/user-attachments/assets/cde5d69c-657f-4ae4-b4ae-b958ea2eacc5) | alternative is you can get like, you have those Dr. Bronner's| Alternative is you can get like [UH] you have those, you know, those doctor Brahmer's. |
-| [Demo en 2](https://github.com/user-attachments/assets/906e307d-5613-4c41-9c61-65f4beede1fd) | influence our natural surrounding? How does it influence our ecosystem? | Influence our [UM] our [UH] our natural surrounding. How does it influence our ecosystem? |
-| [Demo en 3](https://github.com/user-attachments/assets/6c09cd58-a574-4697-9a7e-92e416cf2522) | and always find a place on the street to park and it was easy and you weren't a long distance away from wherever it was that you were trying to go. So I remember that being a lot of fun and easy to do and there were nice places to go and good events to attend. Come downtown and you had the Warner Theater and | And always find a place on the street to park. And and it was it was easy and you weren't a long distance away from wherever it was that you were trying to go. So, I I I remember that being a lot of fun and easy to do and there were nice places to go and, [UM] i good events to attend. Come downtown and you had the Warner Theater and, [UM] |
-| [Demo en 4](https://github.com/user-attachments/assets/7df19486-5e4e-4443-8528-09b07dddf61a) | you know, more masculine, who were rough, and that definitely wasn't me. Then, you know, I was very smart because my father made sure I was smart, you know. So, you know, I hung around those people, you know. And then you had the ones that were just out doing things that they shouldn't have been doing also. So, yeah, I was in the little geek squad. You were in the little geek squad. Yeah. | you know, more masculine, who were rough, and that definitely wasn't me. Then, you know, I was very smart because my father made sure I was smart. You know, so, [UM] you know, I I hung around those people, you know. And then you had the ones that were just just out doing things that they shouldn't have been doing also. So yeah, I was the l I was in the little geek squad. Do you |
-
-### 1.2 Quantitative Performance Overview
-
-#### Transcription Performance
-
-CrisperWhisper significantly outperforms Whisper Large v3, especially on datasets that have a more verbatim transcription style in the ground truth, such as AMI and TED-LIUM.
-
-| Dataset            | CrisperWhisper | Whisper Large v3 | 
-|----------------------|:--------------:|:----------------:|
-| [AMI](https://huggingface.co/datasets/edinburghcstr/ami)                 | **8.72**       | 16.01            |    
-| [Earnings22](https://huggingface.co/datasets/revdotcom/earnings22)           | 12.37          | **11.3**        | 
-| [GigaSpeech](https://huggingface.co/datasets/speechcolab/gigaspeech)         | 10.27          | **10.02**        |     
-| [LibriSpeech clean](https://huggingface.co/datasets/openslr/librispeech_asr)   | **1.74**       | 2.03            |    
-| [LibriSpeech other](https://huggingface.co/datasets/openslr/librispeech_asr)   | 3.97           | **3.91**         |      
-| [SPGISpeech](https://huggingface.co/datasets/kensho/spgispeech)          | **2.71**           | 2.95        |     
-| [TED-LIUM](https://huggingface.co/datasets/LIUM/tedlium)             | **3.35**          | 3.9        |    
-| [VoxPopuli](https://huggingface.co/datasets/facebook/voxpopuli)           | **8.61**           | 9.52         |  
-| [CommonVoice](https://huggingface.co/datasets/mozilla-foundation/common_voice_9_0)       | **8.19**           | 9.67        |      
-| **Average WER**      | **6.66**       | 7.7         |  
-
-#### Segmentation Performance
-
-CrisperWhisper demonstrates superior performance segmentation performance. This performance gap is especially pronounced around disfluencies and pauses.
-The following table uses the metrics as defined in the paper. For this table we used a collar of 50ms. Heads for each Model were selected using the method described in the [How](#5-how) section and the result attaining the highest F1 Score was choosen for each model using varying number of heads.
-
-| Dataset | Metric | CrisperWhisper | Whisper Large v2 | Whisper Large v3 |
-|---------|--------|------------------|------------------|------------------|
-| [AMI IHM](https://groups.inf.ed.ac.uk/ami/corpus/) | F1 Score | **0.79** | 0.63 | 0.66 |
-| | Avg IOU | **0.67** | 0.54 | 0.53 |
-| [Common Voice](https://commonvoice.mozilla.org/en/datasets) | F1 Score | **0.80** | 0.42 | 0.48 |
-| | Avg IOU | **0.70** | 0.32 | 0.43 |
-| [TIMIT](https://catalog.ldc.upenn.edu/LDC93S1) | F1 Score | **0.69** | 0.40 | 0.54 |
-| | Avg IOU | **0.56** | 0.32 | 0.43 |
-
-More plots and ablations can be found in the `run_experiments/plots` folder.
-
-## 2. Setup ⚙️
-
-### 2.1 Prerequisites
-
-- **Python**: 3.10
-- **PyTorch**: 2.0
-- **NVIDIA Libraries**: cuBLAS 11.x and cuDNN 8.x (for GPU execution)
-
-### 2.2 Environment Setup
-
-1. **Clone the Repository**:
-    ```bash
-    git clone https://github.com/nyrahealth/CrisperWhisper.git
-    cd CrisperWhisper
-    ```
-
-2. **Create Python Environment**:
-    ```bash
-    conda create --name crisperWhisper python=3.10
-    conda activate crisperWhisper
-    ```
-
-
-3. **Install Dependencies**:
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-4. **Additional Installations**:
-    Follow OpenAI's instructions to install additional dependencies like `ffmpeg` and `rust`: [Whisper Setup](https://github.com/openai/whisper#setup).
-
-## 3. Usage 
-
-Here's how to use CrisperWhisper in your Python scripts:
-First install our custom transformers fork for the most accurate timestamps:
-```
-pip install git+https://github.com/nyrahealth/transformers.git@crisper_whisper
-```
-
-### 3.1 Usage with 🤗 transformers
-First make sure that you have a huggingface account and accept the licensing of the [model](https://huggingface.co/nyrahealth/CrisperWhisper). Grab your huggingface access token and login so you are certainly able to download the model.
-
-```bash
-huggingface-cli login
-``` 
-
-```python
-import os
-import sys
-import torch
-
-from datasets import load_dataset
-from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
-from utils import adjust_pauses_for_hf_pipeline_output
-
-
-
-device = "cuda:0" if torch.cuda.is_available() else "cpu"
-torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
-
-model_id = "nyrahealth/CrisperWhisper"
-
-model = AutoModelForSpeechSeq2Seq.from_pretrained(
-    model_id, torch_dtype=torch_dtype, low_cpu_mem_usage=True, use_safetensors=True
-)
-model.to(device)
-
-processor = AutoProcessor.from_pretrained(model_id)
-
-pipe = pipeline(
-    "automatic-speech-recognition",
-    model=model,
-    tokenizer=processor.tokenizer,
-    feature_extractor=processor.feature_extractor,
-    chunk_length_s=30,
-    batch_size=16,
-    return_timestamps='word',
-    torch_dtype=torch_dtype,
-    device=device,
-)
-
-dataset = load_dataset("distil-whisper/librispeech_long", "clean", split="validation")
-sample = dataset[0]["audio"]
-hf_pipeline_output = pipe(sample)
-crisper_whisper_result = adjust_pauses_for_hf_pipeline_output(hf_pipeline_output)
-print(crisper_whisper_result)
-```
-### 3.2 Usage with faster whisper
-
-We also provide a converted model to be compatible with [faster whisper](https://github.com/SYSTRAN/faster-whisper). However, due to the different implementation of the timestamp calculation in faster whisper or more precisely [CTranslate2](https://github.com/OpenNMT/CTranslate2/) the timestamp accuracy can not be guaranteed. 
-
-First make sure that you have a huggingface account and accept the licensing of the [model](https://huggingface.co/nyrahealth/faster_CrisperWhisper). Grab your huggingface access token and login so you are certainly able to download the model.
-```bash
-huggingface-cli login
-``` 
-
-```python
-from faster_whisper import WhisperModel
-from datasets import load_dataset
-faster_whisper_model = 'nyrahealth/faster_CrisperWhisper'
-
-# Initialize the Whisper model
-
-device = "cuda:0" if torch.cuda.is_available() else "cpu"
-torch_dtype = "float16" if torch.cuda.is_available() else "float32"
-model = WhisperModel(faster_whisper_model, device=device, compute_type="float32")
-dataset = load_dataset("distil-whisper/librispeech_long", "clean", split="validation")
-sample = dataset[0]["audio"]
-
-segments, info = model.transcribe(sample['array'], beam_size=1, language='en', word_timestamps = True, without_timestamps= True)
-
-for segment in segments:
-    print(segment)
-```
-
-### 3.3 Commandline usage
-
-First make sure that you have a huggingface account and accept the licensing of the model. Grab your huggingface access token and login so you are certainly able to download the model.
-```bash
-    huggingface-cli login
- ```
-afterwards:
-
-To transcribe an audio file, use the following command:
-
-```bash
-python transcribe.py --f <path_to_audio_file>
-```
-
-## 4. Running the Streamlit App
-
-To use the CrisperWhisper model with a user-friendly interface, you can run the provided Streamlit app. This app allows you to record or upload audio files for transcription and view the results with accurate word-level timestamps.
-
-### 4.1 Prerequisites
-
-Make sure you have followed the [Setup ⚙️](#setup) instructions above and have the `crisperWhisper` environment activated.
-
-### 4.2 Steps to Run the Streamlit App
-
-1. **Activate the Conda Environment**
-
-    Ensure you are in the `crisperWhisper` environment:
-    ```sh
-    conda activate crisperWhisper
-    ```
-
-2. **Navigate to the App Directory**
-
-    Change directory to where the `app.py` script is located:
-
-
-3. **Run the Streamlit App**
-
-    Use the following command to run the app. Make sure to replace `/path/to/your/model` with the actual path to your CrisperWhisper model directory:
-    ```sh
-    streamlit run app.py -- --model_id /path/to/your/model
-    ```
-
-    For example:
-    ```sh
-    streamlit run app.py -- --model_id nyrahealth/CrisperWhisper
-    ```
-
-4. **Access the App**
-
-    After running the command, the Streamlit server will start, and you can access the app in your web browser at:
-    ```
-    http://localhost:8501
-    ```
-
-### 4.3 Features of the App
-
-- **Record Audio**: Record audio directly using your microphone.
-- **Upload Audio**: Upload audio files in formats like WAV, MP3, or OGG.
-- **Transcription**: Get accurate verbatim transcriptions including fillers
-- **Video Generation**: View the transcription with timestamps alongside a video with a black background.
-
-## 5. How?
-
-
-We employ the popular Dynamic Time Warping (DTW) on the Whisper cross-attention scores, as detailed in our [paper](https://arxiv.org/abs/2408.16589) to derive word-level timestamps. By leveraging our retokenization process, this method allows us to consistently detect pauses. Given that the accuracy of the timestamps heavily depends on the DTW cost matrix and, consequently, on the quality of the cross-attentions, we developed a specialized loss function for the selected alignment heads to enhance precision.
-
-Although this loss function was not included in the original [paper](https://arxiv.org/abs/2408.16589) due to time constraints preventing the completion of experiments and training before the submission deadline, it has been used to train our publicly available models.
-Key Features of this loss are as follows:
-
-1. **Data Preparation**
-    - We used datasets with word-level timestamp annotations, such as [AMI IHM](https://groups.inf.ed.ac.uk/ami/corpus/) and [TIMIT](https://catalog.ldc.upenn.edu/LDC93S1)   , but required additional timestamped data.
-    - To address this, we validated the alignment accuracy of several forced alignment tools using a small hand-labeled dataset.
-    - Based on this validation, we chose the [PyTorch CTC aligner](https://pytorch.org/audio/main/tutorials/ctc_forced_alignment_api_tutorial.html) to generate more time-aligned data from the CommonVoice dataset.
-    - Because the [PyTorch CTC aligner](https://pytorch.org/audio/main/tutorials/ctc_forced_alignment_api_tutorial.html) tends to overestimate pause durations, we applied the same pause-splitting method detailed in our [paper](...) to correct these errors. The effectiveness of this correction was confirmed using our hand-labeled dataset.
-
-2. **Token-Word Alignment**
-    - Due to retokenization as detailed in our [paper](https://arxiv.org/abs/2408.16589), each token is either part of a word or a pause/space, but never both
-    - Therefore each token can be cleanly aligned to a word OR a space/pause
-
-3. **Ground Truth Cross-Attention**
-    - We define the cross-attention ground truth for tokens as the L2-normalized vector, where:
-        - A value of 1 indicates that the word is active according to the word-level ground truth timestamp.
-        - A value of 0 indicates that no attention should be paid.
-    - To account for small inaccuracies in the ground truth timestamps, we apply a linear interpolation of 4 steps (8 milliseconds) on both sides of the ground truth vector, transitioning smoothly from 0 to 1.
-
-4. **Loss Calculation**
-- The loss function is defined as `1 - cosine similarity`  between the predicted cross-attention vector (when predicting a token) and the ground truth cross-attention vector.
-- This loss is averaged across all predicted tokens and alignment heads.
-
-5 **Alignment Head selection**
-- To choose the heads for alignment we evaluated the alignment performance of each individual decoder attention head on the timestamped timit dataset.
-- We choose the 15 best performing heads and finetune them using our attention loss.
-
-5. **Training Details**
-- Since most of our samples during training were shorter than 30 seconds we shift the audio sample and corresponding timestamp ground truth around with a 50% probability to mitigate the cross attentions ,,overfitting" to early positions of the encoder output.
-- If we have more than 40ms of silence (before or after shifting) we prepend the ground truth transcript ( and corresponding cross attention ground truth) with a space so the model has to accurately predict the starting time of the first word.
-- We use [WavLM](https://arxiv.org/abs/2110.13900) augmentations during Training adding random speech samples or noise to the audio wave to generally increase robustness of the transcription and stability of the alignment heads.
-- We clip ,,predicted" values in the cross attention vectors 4 seconds before and 4 seconds after the groundtruth word they belong to to 0. This is to decrease the dimensionality of the cross attention vector and therefore emphasize the attention where it counts in the loss and ultimately for the alignment.
-- With a probability of 1% we use samples containing exclusively noise where the model has to return a empty prediction to improve hallucination.
-- The Model is trained in three stages, in the first stage we use around 10000 hours of audio to adjust Whisper to the new tokenizer. In the second stage we exclusively use high quality datasets that are transcribed in a verbatim fashion. Finally we continue training on this verbatim mixture and add the attention loss for another 6000 steps.
-
-
-## License
-
-```markdown
-Shield: [![CC BY-NC 4.0][cc-by-nc-shield]][cc-by-nc]
-
-This work is licensed under a
-[Creative Commons Attribution-NonCommercial 4.0 International License][cc-by-nc].
-
-[![CC BY-NC 4.0][cc-by-nc-image]][cc-by-nc]
-
-[cc-by-nc]: https://creativecommons.org/licenses/by-nc/4.0/
-[cc-by-nc-image]: https://licensebuttons.net/l/by-nc/4.0/88x31.png
-[cc-by-nc-shield]: https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg
-```
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Filler Word Detector</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --accent: #6c5ce7;
+    --accent2: #00d1b2;
+    --text: #e8e8ee;
+    --muted: #8b8fa3;
+    --danger: #ff5470;
+    --warn: #ffb020;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at top, #1c1f29, #0b0c10);
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    color: var(--text);
+    padding: 20px;
+  }
+  .card {
+    background: var(--panel);
+    border-radius: 16px;
+    padding: 32px;
+    width: 100%;
+    max-width: 560px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); font-size: 0.85rem; margin-bottom: 8px; }
+  .warning {
+    background: #2a2410;
+    border: 1px solid #5a4a10;
+    color: var(--warn);
+    font-size: 0.78rem;
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    line-height: 1.4;
+  }
+  .timer {
+    text-align: center;
+    font-size: 2.2rem;
+    font-variant-numeric: tabular-nums;
+    margin-bottom: 16px;
+  }
+  .controls {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+  button {
+    border: none;
+    border-radius: 50px;
+    padding: 12px 20px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform .15s ease, opacity .15s ease;
+  }
+  button:hover { transform: translateY(-2px); }
+  button:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+  .btn-record { background: var(--danger); color: white; }
+  .btn-stop { background: #444a5c; color: white; }
+  .status {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-bottom: 20px;
+    min-height: 18px;
+  }
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .stat-box {
+    background: #1e222c;
+    border-radius: 10px;
+    padding: 12px;
+    text-align: center;
+  }
+  .stat-box .num {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--accent2);
+  }
+  .stat-box .label {
+    font-size: 0.7rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 4px;
+  }
+  .section-title {
+    font-size: 0.9rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 0 0 10px;
+    border-top: 1px solid #262a35;
+    padding-top: 16px;
+  }
+  .transcript {
+    background: #0b0c10;
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    max-height: 140px;
+    overflow-y: auto;
+    margin-bottom: 16px;
+    color: var(--text);
+  }
+  .transcript mark {
+    background: var(--danger);
+    color: white;
+    border-radius: 4px;
+    padding: 0 4px;
+  }
+  .filler-log {
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  .filler-row {
+    display: flex;
+    justify-content: space-between;
+    background: #1e222c;
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 6px;
+    font-size: 0.85rem;
+  }
+  .filler-row .word {
+    color: var(--danger);
+    font-weight: 600;
+  }
+  .filler-row .when {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .empty {
+    color: var(--muted);
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 16px 0;
+  }
+  .pulse {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--danger);
+    margin-right: 6px;
+    animation: pulse 1s infinite;
+  }
+  @keyframes pulse { 0%,100% {opacity:1;} 50% {opacity:0.2;} }
+  .download-row {
+    display: flex;
+    justify-content: center;
+    margin-top: 16px;
+  }
+  .btn-export {
+    background: var(--accent);
+    color: white;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>🎙️ Filler Word Detector</h1>
+  <div class="subtitle">Records audio and flags speech fillers like "um", "uh", "hmm", "erm" as they're detected, with timestamps.</div>
+  <div class="warning" id="browserWarning">
+    Note: this relies on your browser's built-in speech recognition (Chrome/Edge only). Speech engines are built to produce clean text, so they don't always transcribe filler sounds — treat counts as an estimate, not an exact measurement.
+  </div>
+
+  <div class="timer" id="timer">00:00</div>
+
+  <div class="controls">
+    <button class="btn-record" id="recordBtn">● Start Recording</button>
+    <button class="btn-stop" id="stopBtn" disabled>⏹ Stop</button>
+  </div>
+
+  <div class="status" id="status">Click "Start Recording" to begin.</div>
+
+  <div class="stats-grid">
+    <div class="stat-box">
+      <div class="num" id="fillerCount">0</div>
+      <div class="label">Fillers</div>
+    </div>
+    <div class="stat-box">
+      <div class="num" id="fillerTime">0.0s</div>
+      <div class="label">Filler Time</div>
+    </div>
+    <div class="stat-box">
+      <div class="num" id="fillerRate">0.0</div>
+      <div class="label">Per Minute</div>
+    </div>
+  </div>
+
+  <div class="section-title">Live Transcript</div>
+  <div class="transcript" id="transcript"><span style="color:var(--muted)">Transcript will appear here...</span></div>
+
+  <div class="section-title">Filler Log</div>
+  <div class="filler-log" id="fillerLog">
+    <div class="empty" id="emptyLog">No fillers detected yet.</div>
+  </div>
+
+  <div class="download-row">
+    <button class="btn-export" id="exportBtn" disabled>⬇ Export Report (JSON)</button>
+  </div>
+</div>
+
+<script>
+const FILLER_PATTERNS = [
+  'um', 'umm', 'ummm', 'uh', 'uhh', 'uhm', 'erm', 'ehm', 'hmm', 'hmmm',
+  'ah', 'ahh', 'er', 'err', 'like', 'you know', 'i mean', 'so yeah'
+];
+// Core non-lexicalized fillers we score by default (exclude filler *phrases* like "like"/"you know" from strict count,
+// but still highlight them). Toggle via CORE_ONLY below if you want stricter detection.
+const CORE_FILLERS = new Set(['um','umm','ummm','uh','uhh','uhm','erm','ehm','hmm','hmmm','ah','ahh','er','err']);
+
+const recordBtn = document.getElementById('recordBtn');
+const stopBtn = document.getElementById('stopBtn');
+const status = document.getElementById('status');
+const timerEl = document.getElementById('timer');
+const transcriptEl = document.getElementById('transcript');
+const fillerLog = document.getElementById('fillerLog');
+const emptyLog = document.getElementById('emptyLog');
+const fillerCountEl = document.getElementById('fillerCount');
+const fillerTimeEl = document.getElementById('fillerTime');
+const fillerRateEl = document.getElementById('fillerRate');
+const exportBtn = document.getElementById('exportBtn');
+const browserWarning = document.getElementById('browserWarning');
+
+let recognition;
+let mediaRecorder;
+let audioChunks = [];
+let stream;
+let startTime;
+let timerInterval;
+let fillers = [];
+let fullTranscript = '';
+let estFillerDuration = 0.4; // seconds, rough estimate per filler utterance
+
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!SpeechRecognition) {
+  browserWarning.textContent = 'Your browser does not support the Web Speech API. Please use Chrome or Edge for filler detection (audio recording will still work, but no transcript/filler detection).';
+}
+
+function formatTime(ms) {
+  const totalSec = Math.floor(ms / 1000);
+  const min = String(Math.floor(totalSec / 60)).padStart(2, '0');
+  const sec = String(totalSec % 60).padStart(2, '0');
+  return `${min}:${sec}`;
+}
+
+function updateTimer() {
+  timerEl.textContent = formatTime(Date.now() - startTime);
+}
+
+function updateStats() {
+  const count = fillers.length;
+  const totalTime = fillers.reduce((sum, f) => sum + f.duration, 0);
+  const elapsedMin = Math.max((Date.now() - startTime) / 60000, 1/60);
+  fillerCountEl.textContent = count;
+  fillerTimeEl.textContent = totalTime.toFixed(1) + 's';
+  fillerRateEl.textContent = (count / elapsedMin).toFixed(1);
+}
+
+function logFiller(word, timestampMs) {
+  const relativeSec = ((timestampMs - startTime) / 1000).toFixed(1);
+  fillers.push({ word, timestampMs, relativeSec: parseFloat(relativeSec), duration: estFillerDuration });
+
+  emptyLog.style.display = 'none';
+  const row = document.createElement('div');
+  row.className = 'filler-row';
+  row.innerHTML = `<span class="word">"${word}"</span><span class="when">${relativeSec}s in</span>`;
+  fillerLog.prepend(row);
+
+  updateStats();
+}
+
+function scanTextForFillers(text, timestampMs) {
+  const words = text.toLowerCase().replace(/[.,!?;:]/g, '').split(/\s+/);
+  words.forEach(w => {
+    if (CORE_FILLERS.has(w)) {
+      logFiller(w, timestampMs);
+    }
+  });
+}
+
+function highlightTranscript(text) {
+  let html = text;
+  CORE_FILLERS.forEach(f => {
+    const re = new RegExp(`\\b${f}\\b`, 'gi');
+    html = html.replace(re, m => `<mark>${m}</mark>`);
+  });
+  return html;
+}
+
+async function startRecording() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (err) {
+    status.textContent = 'Microphone access denied or unavailable.';
+    return;
+  }
+
+  audioChunks = [];
+  mediaRecorder = new MediaRecorder(stream);
+  mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+  mediaRecorder.onstop = () => {
+    stream.getTracks().forEach(track => track.stop());
+  };
+  mediaRecorder.start();
+
+  fillers = [];
+  fullTranscript = '';
+  fillerLog.innerHTML = '';
+  emptyLog.style.display = 'block';
+  emptyLog.textContent = 'No fillers detected yet.';
+  fillerLog.appendChild(emptyLog);
+  transcriptEl.innerHTML = '<span style="color:var(--muted)">Listening...</span>';
+
+  startTime = Date.now();
+  timerInterval = setInterval(updateTimer, 200);
+
+  if (SpeechRecognition) {
+    recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onresult = (event) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        const text = result[0].transcript;
+        const now = Date.now();
+        if (result.isFinal) {
+          fullTranscript += text + ' ';
+          scanTextForFillers(text, now);
+        } else {
+          interim += text;
+          scanTextForFillers(text, now);
+        }
+      }
+      transcriptEl.innerHTML = highlightTranscript(fullTranscript) + '<span style="color:var(--muted)">' + interim + '</span>';
+    };
+
+    recognition.onerror = (e) => {
+      if (e.error !== 'no-speech') {
+        status.textContent = 'Speech recognition error: ' + e.error;
+      }
+    };
+
+    recognition.onend = () => {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        recognition.start(); // auto-restart if still recording (some browsers stop after silence)
+      }
+    };
+
+    recognition.start();
+  }
+
+  status.innerHTML = '<span class="pulse"></span>Recording & listening...';
+  recordBtn.disabled = true;
+  stopBtn.disabled = false;
+  exportBtn.disabled = true;
+}
+
+function stopRecording() {
+  clearInterval(timerInterval);
+  mediaRecorder.stop();
+  if (recognition) {
+    recognition.onend = null; // prevent auto-restart
+    recognition.stop();
+  }
+  recordBtn.disabled = false;
+  stopBtn.disabled = true;
+  exportBtn.disabled = fillers.length === 0 && fullTranscript.trim() === '';
+  status.textContent = `Done. ${fillers.length} filler(s) detected in ${timerEl.textContent}.`;
+  updateStats();
+}
+
+exportBtn.addEventListener('click', () => {
+  const report = {
+    recordedAt: new Date().toISOString(),
+    durationLabel: timerEl.textContent,
+    transcript: fullTranscript.trim(),
+    fillerCount: fillers.length,
+    totalFillerTimeSec: fillers.reduce((s, f) => s + f.duration, 0),
+    fillers: fillers.map(f => ({ word: f.word, atSecond: f.relativeSec, estDurationSec: f.duration }))
+  };
+  const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `filler-report-${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+recordBtn.addEventListener('click', startRecording);
+stopBtn.addEventListener('click', stopRecording);
+</script>
+
+</body>
+</html>
